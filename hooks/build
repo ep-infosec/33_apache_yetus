@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+if [[ -n "${DOCKER_MULTIARCH}" ]]; then
+
+  docker buildx create --name yetus-multiarch --driver docker-container --use \
+    || docker buildx use yetus-multiarch \
+    || exit 1
+  docker buildx inspect --bootstrap || exit 1
+
+  traphandler() {
+    docker buildx rm yetus-multiarch || true
+  }
+
+  trap traphandler HUP INT QUIT TERM
+
+fi
+
+iso8601date() {
+  date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+opencontainerslabels() {
+  LABELS=()
+
+  ## Reference: https://github.com/opencontainers/image-spec/blob/main/annotations.md
+
+  case "$1" in
+    "base")
+      desc="OS and 3rd party tools container image for use with Apache Yetus"
+      title=" (3rd Party Components)"
+      ;;
+    "full")
+      desc="Apache Yetus container image, including OS and 3rd party tooling"
+      title=""
+      ;;
+  esac
+
+
+  if [[ "${GIT_URL}" =~ apache/yetus ]]; then
+    for label in \
+      "org.opencontainers.image.description=${desc}" \
+      "org.opencontainers.image.authors=\"Apache Yetus <dev@yetus.apache.org>\"" \
+      "org.opencontainers.image.url=https://yetus.apache.org" \
+      "org.opencontainers.image.documentation=https://yetus.apache.org/documentation" \
+      "org.opencontainers.image.title=\"Apache Yetus ${title}\"" \
+      ; do
+        LABELS+=(--label "$label")
+    done
+  fi
+
+ for label in \
+    "org.opencontainers.image.created=$(iso8601date)" \
+    "org.opencontainers.image.source=${GIT_URL}" \
+    "org.opencontainers.image.version=${SOURCE_BRANCH}" \
+    "org.opencontainers.image.revision=${SOURCE_COMMIT}" \
+  ; do
+    LABELS+=(--label "$label")
+  done
+}
+
+GIT_URL=$(git config --get remote.origin.url)
+
+# shellcheck disable=SC2034
+DOCKER_BUILDKIT=1
+export DOCKER_BUILDKIT
+
+# shellcheck disable=SC2034
+DOCKER_CLI_EXPERIMENTAL=enabled
+export DOCKER_CLI_EXPERIMENTAL
+
+if [[ -z "${SOURCE_COMMIT}" ]]; then
+  SOURCE_COMMIT="$(git rev-parse --verify HEAD)"
+  export SOURCE_COMMIT
+fi
+
+if [[ -z "${SOURCE_BRANCH}" ]]; then
+  SOURCE_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+  if [[ "${SOURCE_BRANCH}" == 'HEAD' ]]; then
+    SOURCE_BRANCH=$(git describe --tags)
+  fi
+  export SOURCE_BRANCH
+fi
+
+SOURCE_BRANCH=${SOURCE_BRANCH/rel\//}
+
+if [[ -z "${DOCKER_TAG}" ]]; then
+  DOCKER_TAG=${SOURCE_BRANCH}
+  export DOCKER_TAG
+fi
+
+if [[ -z "${DOCKER_REPO}" ]]; then
+  DOCKER_REPO=apache/yetus
+  export DOCKER_REPO
+fi
+
+BUILDERINSTANCE=$(docker buildx inspect --bootstrap | grep Driver)
+PLATARRAY=()
+
+if [[ "${BUILDERINSTANCE}" =~ docker-container ]]; then
+  KNOWN_PLATFORMS=$(docker buildx inspect --bootstrap | grep Platforms)
+
+  if [[ ${KNOWN_PLATFORMS} =~ linux/amd64 ]]; then
+    PLATFORMS+=(linux/amd64)
+  fi
+
+  if [[ ${KNOWN_PLATFORMS} =~ linux/arm64 ]]; then
+    PLATFORMS+=(linux/arm64)
+  fi
+
+  PLATSTRING=${PLATFORMS[*]}
+  PLATSTRING=${PLATSTRING/ /,}
+  echo "Building for ${PLATSTRING}"
+
+  PLATARRAY=(--platform "${PLATSTRING}")
+fi
+
+echo
+echo "Building ${DOCKER_REPO}-base:${DOCKER_TAG}"
+echo
+
+opencontainerslabels "base"
+
+# Build the -base image
+docker buildx build \
+  "${PLATARRAY[@]}" \
+  "${LABELS[@]}" \
+  --tag "${DOCKER_REPO}-base:${DOCKER_TAG}" \
+  --push \
+  precommit/src/main/shell/test-patch-docker || exit 1
+
+opencontainerslabels "full"
+
+# Build the full image using base above
+docker buildx build \
+  "${PLATARRAY[@]}" \
+  --label "org.opencontainers.image.base.name=${DOCKER_REPO}-base:${DOCKER_TAG}" \
+  "${LABELS[@]}" \
+  --tag "${DOCKER_REPO}:${DOCKER_TAG}" \
+  --build-arg DOCKER_TAG="${DOCKER_TAG}" \
+  --build-arg DOCKER_REPO="${DOCKER_REPO}" \
+  --push \
+  .

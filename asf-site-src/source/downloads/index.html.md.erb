@@ -1,0 +1,75 @@
+<!---
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
+-->
+<% if data.versions.releases.nil? %>
+Coming soon!
+
+As a new top-level project split from another top level Apache project, we
+are currently establishing an independent build and release process.  If you would
+like to help out, check out the Getting Involved link above!
+<% else %>
+# Apache Yetus Downloads
+
+The Apache Yetus project publishes a single source artifact per release for all of
+our components as well as a convenience artifact of binaries and documentation for immediate use. You
+should verify the integrity of these artifacts via [the ASF procedure](https://www.apache.org/info/verification.html)
+using the [KEYS file for our project](https://downloads.apache.org/yetus/KEYS).
+
+In addition to the artifacts below, we publish convenience artifacts in some
+third-party repositories (e.g. Maven Central) and [Docker Hub](../yetus-docker-image).
+
+## Releases
+
+<%   data.versions.releases.reverse.each do | release | %>
+  * <%= release %>
+    * [Release Notes](releasenotes/<%= release %>/RELEASENOTES.<%= release %>/)
+    * [CHANGELOG](releasenotes/<%= release %>/CHANGELOG.<%= release %>/)
+    <% if release =~ /^0\.[0-8]\./ %>
+      * Source : [yetus-<%= release %>-src.tar.gz](https://www.apache.org/dyn/closer.lua?path=/yetus/<%= release %>/yetus-<%= release %>-src.tar.gz) ([signature](https://downloads.apache.org/yetus/<%= release %>/yetus-<%= release %>-src.tar.gz.asc), [hashes](https://downloads.apache.org/yetus/<%= release %>/yetus-<%= release %>-src.tar.gz.mds))
+      * Binaries : [yetus-<%= release %>-bin.tar.gz](https://www.apache.org/dyn/closer.lua?path=/yetus/<%= release %>/yetus-<%= release %>-bin.tar.gz) ([signature](https://downloads.apache.org/yetus/<%= release %>/yetus-<%= release %>-bin.tar.gz.asc), [hashes](https://downloads.apache.org/yetus/<%= release %>/yetus-<%= release %>-bin.tar.gz.mds))
+    <% else %>
+      * Source : [apache-yetus-<%= release %>-src.tar.gz](https://www.apache.org/dyn/closer.lua?path=/yetus/<%= release %>/apache-yetus-<%= release %>-src.tar.gz) ([signature](https://downloads.apache.org/yetus/<%= release %>/apache-yetus-<%= release %>-src.tar.gz.asc), [hashes](https://downloads.apache.org/yetus/<%= release %>/apache-yetus-<%= release %>-src.tar.gz.mds))
+      * Binaries : [apache-yetus-<%= release %>-bin.tar.gz](https://www.apache.org/dyn/closer.lua?path=/yetus/<%= release %>/apache-yetus-<%= release %>-bin.tar.gz) ([signature](https://downloads.apache.org/yetus/<%= release %>/apache-yetus-<%= release %>-bin.tar.gz.asc), [hashes](https://downloads.apache.org/yetus/<%= release %>/apache-yetus-<%= release %>-bin.tar.gz.mds))
+    <% end %>
+<%   end
+   end %>
+
+# OS X Homebrew/Linuxbrew
+
+The latest version of Apache Yetus is also available via Homebrew on Mac OS X:
+
+```bash
+brew tap apache/yetus https://github.com/apache/yetus-homebrew
+brew install yetus
+```
+
+This will install many of the dependencies needed for the precommit functionality as well.
+
+# Helper Script
+
+To aid in downloading Apache Yetus for continuous integration systems, local build environments, etc, we provide a simple script that may be checked into your local repo [here](https://raw.githubusercontent.com/apache/yetus/main/yetus-dl.sh). It takes two parameters:
+
+```bash
+$ yetus-dl.sh <location> <version>
+```
+
+By default, location is `/tmp/yetus` and the version is the latest version. Compatibility is not guaranteed between 'latest' versions.  Additionally, only the last three released versions will be available via this method.
+
+# Previous Releases
+
+The changelogs and release notes for previous releases are available [here](releasenotes).
